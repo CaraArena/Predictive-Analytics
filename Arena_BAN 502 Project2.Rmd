@@ -1,0 +1,784 @@
+---
+title: "BAN 502 Final Project"
+author: "Cara Arena"
+date: "2025-06-26"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(caret)
+library(skimr)
+library(mice)
+library(VIM)
+library(naniar)
+library(UpSetR)
+library(gridExtra)
+library(usemodels)
+library(xgboost)
+library(vip)
+library(DALEXtra)
+library(rpart) #for classification trees
+library(rpart.plot) #for plotting trees
+library(RColorBrewer) #better visualization of classification trees
+library(rattle) #better visualization of classification trees
+library(iml)
+library(glmnet)
+```
+
+Import and Clean Data
+```{r}
+Product <- read_csv("train.csv")
+```
+
+```{r}
+Product_Clean = Product  %>% 
+  mutate(product_code = as_factor(product_code)) %>% 
+  mutate(attribute_0 = as_factor(attribute_0)) %>% 
+  mutate(attribute_1 = as_factor(attribute_1)) %>%
+  mutate(attribute_2 = as_factor(attribute_2)) %>% 
+  mutate(attribute_3 = as_factor(attribute_3)) %>% 
+  mutate(failure = as_factor(failure))
+summary(Product_Clean)
+```
+Visualize Data
+```{r}
+ggplot(Product_Clean, aes(failure)) +
+geom_bar(aes(y = (..count..)/sum(..count..), fill=factor(..x..)), stat= "count")+
+geom_text(aes(label = scales::percent((..count..)/sum(..count..)),
+            y= ((..count..)/sum(..count..))), stat="count",
+        vjust = -.25)
+```
+
+
+```{r}
+ggplot(Product_Clean, aes(x=loading)) + geom_histogram()
+```
+
+```{r}
+ggplot(Product_Clean, aes(x=measurement_3)) + geom_histogram()
+```
+
+```{r}
+ggplot(Product_Clean, aes(x=measurement_4)) + geom_histogram()
+```
+
+```{r}
+ggplot(Product_Clean, aes(x=measurement_5)) + geom_histogram()
+```
+
+```{r}
+ggplot(Product_Clean, aes(x=measurement_6)) + geom_histogram()
+```
+
+```{r}
+ggplot(Product_Clean, aes(x=measurement_7)) + geom_histogram()
+```
+
+```{r}
+ggplot(Product_Clean, aes(x=measurement_8)) + geom_histogram()
+```
+
+```{r}
+ggplot(Product_Clean, aes(x=measurement_9)) + geom_histogram()
+```
+
+```{r}
+ggplot(Product_Clean, aes(x=measurement_10)) + geom_histogram()
+```
+
+```{r}
+ggplot(Product_Clean, aes(x=measurement_11)) + geom_histogram()
+```
+
+```{r}
+ggplot(Product_Clean, aes(x=measurement_12)) + geom_histogram()
+```
+
+```{r}
+ggplot(Product_Clean, aes(x=measurement_13)) + geom_histogram()
+```
+
+```{r}
+ggplot(Product_Clean, aes(x=measurement_14)) + geom_histogram()
+```
+
+```{r}
+ggplot(Product_Clean, aes(x=measurement_15)) + geom_histogram()
+```
+
+```{r}
+ggplot(Product_Clean, aes(x=measurement_16)) + geom_histogram()
+```
+
+```{r}
+ggplot(Product_Clean, aes(x=measurement_17)) + geom_histogram()
+```
+
+Further Data Cleaning
+```{r}
+Product_Clean = Product_Clean %>% 
+filter(loading<300, measurement_3<21, measurement_4>9, between(measurement_5, 14, 21), measurement_5<21, measurement_6<21, between(measurement_7, 8.5, 15), between(measurement_8, 15.5, 22.5), between(measurement_9, 8, 15), between(measurement_10, 11.5, 21), between(measurement_11, 14.5, 23), between(measurement_12, 7.5, 16), between(measurement_13, 12.25, 20.25), between(measurement_14, 11.5, 20.5), between(measurement_15, 10, 20), between(measurement_16, 10.5, 21), between(measurement_17, 300, 1100))
+summary(Product_Clean)
+```
+
+## Visualizing Variables
+```{r}
+p1 = ggplot(product_complete, aes(x = loading, fill = failure)) + geom_boxplot()
+p2 = ggplot(product_complete, aes(x = attribute_0, fill = failure)) + geom_bar(position = "fill")
+p3 = ggplot(product_complete, aes(x = attribute_1, fill = failure)) + geom_bar(position = "fill")
+p4 = ggplot(product_complete, aes(x = attribute_2, fill = failure)) + geom_bar(position = "fill")
+grid.arrange(p1,p2,p3,p4)
+```
+
+```{r}
+p5 = ggplot(product_complete, aes(x = measurement_0, fill = failure)) + geom_boxplot()
+p6 = ggplot(product_complete, aes(x = measurement_1, fill = failure)) + geom_boxplot()
+p7 = ggplot(product_complete, aes(x = measurement_2, fill = failure)) + geom_boxplot()
+p8 = ggplot(product_complete, aes(x = measurement_3, fill = failure)) + geom_boxplot()
+grid.arrange(p5,p6,p7,p8)
+```
+
+```{r}
+p6 = ggplot(product_complete, aes(x = measurement_4, fill = failure)) + geom_boxplot()
+p7 = ggplot(product_complete, aes(x = measurement_5, fill = failure)) + geom_boxplot()
+p8 = ggplot(product_complete, aes(x = measurement_6, fill = failure)) + geom_boxplot()
+p9 = ggplot(product_complete, aes(x = measurement_7, fill = failure)) + geom_boxplot()
+grid.arrange(p6,p7,p8,p9)
+```
+```{r}
+p10 = ggplot(product_complete, aes(x = measurement_8, fill = failure)) + geom_boxplot()
+p11 = ggplot(product_complete, aes(x = measurement_9, fill = failure)) + geom_boxplot()
+p12 = ggplot(product_complete, aes(x = measurement_10, fill = failure)) + geom_boxplot()
+p13 = ggplot(product_complete, aes(x = measurement_11, fill = failure)) + geom_boxplot()
+grid.arrange(p10,p11,p12,p13)
+```
+
+```{r}
+p14 = ggplot(product_complete, aes(x = measurement_12, fill = failure)) + geom_boxplot()
+p15 = ggplot(product_complete, aes(x = measurement_13, fill = failure)) + geom_boxplot()
+p16 = ggplot(product_complete, aes(x = measurement_14, fill = failure)) + geom_boxplot()
+p17 = ggplot(product_complete, aes(x = measurement_15, fill = failure)) + geom_boxplot()
+grid.arrange(p14,p15,p16,p17)
+```
+
+```{r}
+p18 = ggplot(product_complete, aes(x = measurement_16, fill = failure)) + geom_boxplot()
+p19 = ggplot(product_complete, aes(x = measurement_17, fill = failure)) + geom_boxplot()
+grid.arrange(p18, p19)
+```
+
+```{r}
+<!-- esquisser() -->
+```
+
+Importing Test Data
+```{r}
+Product2 <- read_csv("test.csv")
+```
+
+```{r}
+Product2_Clean = Product2  %>% 
+  mutate(product_code = as_factor(product_code)) %>% 
+  mutate(attribute_0 = as_factor(attribute_0)) %>% 
+  mutate(attribute_1 = as_factor(attribute_1)) %>%
+  mutate(attribute_2 = as_factor(attribute_2)) %>% 
+  mutate(attribute_3 = as_factor(attribute_3))
+summary(Product2_Clean)
+```
+
+Classification Tree
+Split Data
+```{r}
+set.seed(123) 
+product_split = initial_split(Product_Clean, prop = 0.7, strata = failure) #70% in training
+train = training(product_split) 
+test = testing(product_split)
+```
+
+```{r}
+product_recipe = recipe(failure  ~., train) %>% 
+  step_novel(all_nominal(), -all_outcomes()) %>% 
+  step_dummy(all_nominal(), -all_outcomes()) %>%
+  step_zv(all_predictors())%>% 
+  step_YeoJohnson(all_numeric_predictors()) 
+
+tree_model = decision_tree() %>% 
+  set_engine("rpart", model = TRUE) %>% #don't forget the model = TRUE flag
+  set_mode("classification")
+
+product_wflow = 
+  workflow() %>% 
+  add_model(tree_model) %>% 
+  add_recipe(product_recipe)
+
+product_fit = fit(product_wflow, train)
+```
+
+```{r}
+#extract the tree's fit from the fit object
+tree = product_fit %>% 
+  pull_workflow_fit() %>% 
+  pluck("fit")
+
+#plot the tree
+rpart.plot(tree)
+```
+
+Random Forests
+```{r}
+product_recipe = recipe(failure ~., Product_Clean) %>%
+  step_novel(all_nominal(), -all_outcomes()) %>% 
+  step_dummy(all_nominal(), -all_outcomes()) %>%
+  step_zv(all_predictors())%>% 
+  step_normalize(all_numeric_predictors()) 
+
+rf_model = rand_forest() %>% 
+  set_engine("ranger", importance = "impurity") %>% 
+  set_mode("classification")
+
+product_wflow = 
+  workflow() %>% 
+  add_model(rf_model) %>% 
+  add_recipe(product_recipe)
+
+set.seed(123)
+product_fit = fit(product_wflow, Product_Clean)
+```
+
+Check out random forest details  
+```{r}
+product_fit
+```
+
+```{r}
+predRF = predict(product_fit, Product_Clean)
+head(predRF)
+```
+
+```{r}
+confusionMatrix(predRF$.pred_class, Product_Clean$failure, positive = "Yes")
+```
+```{r}
+predRF = predict(product_fit, test)
+confusionMatrix(predRF$.pred_class, test$failure, positive = "Yes")
+```
+
+```{r}
+predRF = predict(product_fit, Product2_Clean)
+head(predRF2)
+```
+
+Variable Importance Analysis
+```{r}
+prod_mod = extract_fit_parsnip(product_fit)
+vip(prod_mod$fit)
+```
+Random Forests with VIP
+```{r}
+product_complete <- Product_Clean %>% 
+  select(id, product_code, loading, attribute_0, attribute_1, attribute_2, attribute_3, measurement_7, measurement_14, measurement_17, measurement_6, measurement_4, measurement_12, measurement_5, measurement_9, measurement_3, failure)
+```
+
+
+```{r}
+product_recipe = recipe(failure ~., product_complete) %>%
+  step_novel(all_nominal(), -all_outcomes()) %>% 
+  step_dummy(all_nominal(), -all_outcomes()) %>%
+  step_zv(all_predictors())%>% 
+  step_normalize(all_numeric_predictors()) 
+
+rf_model = rand_forest() %>% 
+  set_engine("ranger", importance = "impurity") %>% 
+  set_mode("classification")
+
+product_wflow = 
+  workflow() %>% 
+  add_model(rf_model) %>% 
+  add_recipe(product_recipe)
+
+set.seed(123)
+product_fit = fit(product_wflow, product_complete)
+```
+
+Check out random forest details  
+```{r}
+product_fit
+```
+Predictions  
+```{r}
+predRF = predict(product_fit, product_complete)
+head(predRF)
+confusionMatrix(predRF$.pred_class, product_complete$failure, positive = "Yes")
+```
+```{r}
+testpredrf = predict(product_fit, test)
+head(testpredrf)
+confusionMatrix(testpredrf$.pred_class, test$failure, 
+                positive = "Yes")
+```
+
+
+```{r}
+predRF2 = predict(product_fit, Product2_Clean)
+head(predRF2)
+```
+
+```{r}
+output <- Product2_Clean %>%
+  bind_cols(failure = predRF2$.pred_class)
+```
+
+```{r}
+output <- output %>%
+  select(id, failure)
+head(output)
+```
+```{r}
+##write.csv(output, "predicted_failures9.csv", row.names = FALSE)
+```
+
+```{r}
+set.seed(123)
+rf_folds = vfold_cv(train, v = 5)
+```
+
+```{r}
+product_recipe = recipe(failure ~., train) %>%
+  step_novel(all_nominal(), -all_outcomes()) %>% 
+  step_dummy(all_nominal(), -all_outcomes()) %>%
+  step_zv(all_predictors())%>% 
+  step_normalize(all_numeric_predictors())
+
+rf_model = rand_forest(mtry = tune(), min_n = tune(), trees = 100) %>% 
+  set_engine("ranger", importance = "permutation") %>% 
+  set_mode("classification")
+
+product_wflow = 
+  workflow() %>% 
+  add_model(rf_model) %>% 
+  add_recipe(product_recipe)
+
+set.seed(123)
+rf_res = tune_grid(
+  product_wflow,
+  resamples = rf_folds,
+  grid = 20 
+)
+```
+
+```{r}
+rf_res %>%
+  collect_metrics() %>%
+  filter(.metric == "accuracy") %>%
+  select(mean, min_n, mtry) %>%
+  pivot_longer(min_n:mtry,
+    values_to = "value",
+    names_to = "parameter"
+  ) %>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(show.legend = FALSE) +
+  facet_wrap(~parameter, scales = "free_x") +
+  labs(x = NULL, y = "Accuracy")
+```
+
+```{r}
+best_rf = select_best(rf_res, metric = "accuracy")
+
+final_rf = finalize_workflow(
+  product_wflow,
+  best_rf
+)
+
+final_rf
+```
+
+```{r}
+final_rf_fit = fit(final_rf, train)
+```
+
+Variable Importance Analysis of RF
+```{r}
+final_rf_fit %>% pull_workflow_fit() %>% vip(geom = "point")
+```
+
+```{r}
+trainpredrf = predict(final_rf_fit, train)
+head(trainpredrf)
+```
+
+```{r}
+confusionMatrix(trainpredrf$.pred_class, train$failure, 
+                positive = "Yes")
+```
+
+```{r}
+testpredrf = predict(final_rf_fit, test)
+head(testpredrf)
+```
+
+```{r}
+confusionMatrix(testpredrf$.pred_class, test$failure, 
+                positive = "Yes")
+```
+
+```{r}
+predRF3 = predict(final_rf_fit, Product2_Clean)
+head(predRF3)
+```
+
+
+```{r}
+output2 <- Product2_Clean %>%
+  bind_cols(failure = predRF3$.pred_class)
+head(output2)
+```
+
+
+```{r}
+output2 <- output2 %>%
+  select(id, failure)
+head(output2)
+```
+
+```{r}
+write.csv(output, "predicted_failures10.csv", row.names = FALSE)
+```
+
+XG Boost
+Training/testing split
+```{r}
+set.seed(123) 
+product_split = initial_split(product_complete, prop = 0.7, strata = failure)
+train = training(product_split) 
+test = testing(product_split)
+```
+
+```{r}
+use_xgboost(failure~., train) #comment me out before knitting
+```
+
+```{r}
+set.seed(123)
+folds = group_vfold_cv(train, group = product_code, v = 5)
+```
+
+```{r}
+start_time = Sys.time() #for timing
+
+xgboost_recipe <- 
+  recipe(formula = failure ~ ., data = train) %>% 
+  step_novel(all_nominal(), -all_outcomes()) %>% 
+  step_dummy(all_nominal(), -all_outcomes(), one_hot = TRUE) %>% 
+  step_zv(all_predictors()) 
+
+xgboost_spec <- 
+  boost_tree(trees = tune(), min_n = tune(), tree_depth = tune(), learn_rate = tune(), 
+    loss_reduction = tune(), sample_size = tune()) %>% 
+  set_mode("classification") %>% 
+  set_engine("xgboost") 
+
+xgboost_workflow <- 
+  workflow() %>% 
+  add_recipe(xgboost_recipe) %>% 
+  add_model(xgboost_spec) 
+
+set.seed(96401)
+xgboost_tune <-
+  tune_grid(xgboost_workflow, resamples = folds, grid = 25)
+
+end_time = Sys.time()
+end_time - start_time
+```
+
+```{r}
+best_xgb = select_best(xgboost_tune, metric="accuracy")
+
+final_xgb = finalize_workflow(
+  xgboost_workflow,
+  best_xgb
+)
+
+final_xgb
+```
+
+```{r}
+final_xgb_fit = fit(final_xgb, train)
+```
+
+```{r}
+trainpredxgb = predict(final_xgb_fit, train)
+head(trainpredxgb)
+```
+
+```{r}
+confusionMatrix(trainpredxgb$.pred_class, train$failure, 
+                positive = "Yes")
+```
+
+```{r}
+finalpredxgb = predict(final_xgb_fit, product2_complete)
+head(finalpredxgb)
+```
+
+Visualizing the Importance of Variables
+With this, I am hoping to find variables I can take out from the dataset to reduce some of the noise and find a better fit.
+
+```{r}
+xg_mod = extract_fit_parsnip(final_xgb_fit)
+vip(xg_mod$fit)
+```
+
+Shapley Models
+```{r}
+shap = explain_tidymodels(final_xgb_fit, product_complete %>% select(-failure), y = product_complete$failure == "Yes")
+```
+
+```{r}
+product1 = product_complete[5,]
+product1
+```
+
+```{r}
+predict(shap, product1)
+```
+
+```{r}
+set.seed(123)
+shap_product1 = predict_parts(explainer = shap, 
+                      new_observation = product1, 
+                                 type = "shap",
+                                    B = 25) #number of random orderings of the predictors
+```
+
+```{r}
+plot(shap_product1)
+```
+
+```{r}
+output2 <- product2_complete %>%
+  bind_cols(failure = finalpredxgb$.pred_class)
+head(output2)
+```
+
+```{r}
+confusionMatrix(finalpredxgb$.pred_class, output2$failure, 
+                positive = "Yes")
+```
+
+```{r}
+output2 <- output2 %>%
+  select(id, failure)
+head(output2)
+```
+
+```{r}
+write.csv(output2, "predicted_failures4.csv", row.names = FALSE)
+```
+
+```{r}
+confusionMatrix(testpredxgb$.pred_class, test$failure, 
+                positive = "Yes")
+```
+
+Neural Networks
+
+```{r}
+set.seed(123) 
+product_split = initial_split(Product_Clean, prop = 0.7, strata = failure)
+train = training(product_split) 
+test = testing(product_split)
+```
+
+```{r}
+set.seed(123)
+folds = vfold_cv(train, v = 5)
+```
+
+```{r}
+start_time = Sys.time() #for timing
+
+neural_grid = grid_regular(
+  hidden_units(range = c(1,2)),
+  penalty(range = c(-10,-1)), 
+  #penalty is a weird one, you are not setting the actual penalty itself, you are setting the range of x in 10^x
+  epochs(range = c(1,100)),
+  levels = 10
+)
+  
+product_recipe = recipe(failure ~., train) %>%
+  step_novel(all_nominal(), -all_outcomes()) %>% 
+  step_dummy(all_nominal(), -all_outcomes()) %>%
+  step_zv(all_predictors())%>% 
+  step_normalize(all_numeric_predictors()) 
+
+product_model = 
+  mlp(hidden_units = tune(), penalty = tune(), 
+      epochs = tune()) %>%
+  set_mode("classification") %>% 
+  set_engine("nnet", verbose = 0) #verbose = 0 reduces output from the model
+  
+product_workflow <- 
+  workflow() %>% 
+  add_recipe(product_recipe) %>% 
+  add_model(product_model) 
+
+set.seed(1234)
+neural_tune <-
+  tune_grid(product_workflow, resamples = folds, grid = neural_grid)
+
+end_time = Sys.time()
+end_time-start_time
+```
+```{r}
+neural_tune %>%
+  collect_metrics() %>%
+  filter(.metric == "accuracy") %>%
+  select(mean, hidden_units, penalty, epochs) %>%
+  pivot_longer(hidden_units:epochs,
+    values_to = "value",
+    names_to = "parameter"
+  ) %>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(show.legend = FALSE) +
+  facet_wrap(~parameter, scales = "free_x") +
+  labs(x = NULL, y = "Accuracy")
+```
+
+```{r}
+best_nn = select_best(neural_tune, metric = "accuracy")
+
+final_nn = finalize_workflow(
+  product_workflow,
+  best_nn
+)
+
+final_nn
+```
+
+```{r}
+final_nn_fit = fit(final_nn, train)
+```
+
+```{r}
+trainprednn = predict(final_nn_fit, train)
+head(trainprednn)
+```
+
+```{r}
+confusionMatrix(trainprednn$.pred_class, train$failure, 
+                positive = "Yes")
+```
+
+```{r}
+testprednn = predict(final_nn_fit, test)
+head(testprednn)
+```
+
+```{r}
+confusionMatrix(testprednn$.pred_class, test$failure, 
+                positive = "Yes")
+```
+
+```{r}
+nn_mod = extract_fit_parsnip(final_nn_fit)
+vip(nn_mod$fit)
+```
+
+```{r}
+product_complete <- Product_Clean %>% 
+  select(id, loading, attribute_0, attribute_1, attribute_2, attribute_3, measurement_17, measurement_5, measurement_2, measurement_8, measurement_3, measurement_13, failure)
+```
+
+```{r}
+set.seed(123) 
+product_split2 = initial_split(product_complete, prop = 0.7, strata = failure) #70% in training
+train2 = training(product_split2) 
+test2 = testing(product_split2)
+```
+
+```{r}
+set.seed(123)
+folds2 = vfold_cv(train2, v = 5)
+```
+
+```{r}
+start_time = Sys.time() #for timing
+
+neural_grid2 = grid_regular(
+  hidden_units(range = c(1,2)),
+  penalty(range = c(-10,-1)), 
+  #penalty is a weird one, you are not setting the actual penalty itself, you are setting the range of x in 10^x
+  epochs(range = c(1,100)),
+  levels = 10
+)
+  
+product_recipe2 = recipe(failure ~., train2) %>%
+  step_novel(all_nominal(), -all_outcomes()) %>% 
+  step_dummy(all_nominal(), -all_outcomes()) %>%
+  step_zv(all_predictors())%>% 
+  step_normalize(all_numeric_predictors()) 
+
+product_model2 = 
+  mlp(hidden_units = tune(), penalty = tune(), 
+      epochs = tune()) %>%
+  set_mode("classification") %>% 
+  set_engine("nnet", verbose = 0) #verbose = 0 reduces output from the model
+  
+product_workflow2 <- 
+  workflow() %>% 
+  add_recipe(product_recipe2) %>% 
+  add_model(product_model2) 
+
+set.seed(1234)
+neural_tune2 <-
+  tune_grid(product_workflow2, resamples = folds, grid = neural_grid)
+
+end_time = Sys.time()
+end_time-start_time
+```
+
+```{r}
+neural_tune2 %>%
+  collect_metrics() %>%
+  filter(.metric == "accuracy") %>%
+  select(mean, hidden_units, penalty, epochs) %>%
+  pivot_longer(hidden_units:epochs,
+    values_to = "value",
+    names_to = "parameter"
+  ) %>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(show.legend = FALSE) +
+  facet_wrap(~parameter, scales = "free_x") +
+  labs(x = NULL, y = "Accuracy")
+```
+
+```{r}
+best_nn2 = select_best(neural_tune2, metric = "accuracy")
+
+final_nn2 = finalize_workflow(
+  product_workflow2,
+  best_nn2
+)
+
+final_nn2
+```
+
+```{r}
+final_nn_fit2 = fit(final_nn2, train2)
+```
+
+```{r}
+trainprednn2 = predict(final_nn_fit2, train2)
+head(trainprednn2)
+```
+
+```{r}
+confusionMatrix(trainprednn2$.pred_class, train2$failure, 
+                positive = "Yes")
+```
